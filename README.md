@@ -1,4 +1,4 @@
-# Prompt Runner (Groq-only)
+# Prompt Runner 
 
 Prompt Runner converts free-form natural-language prompts into a deterministic, schema-first JSON instruction using the Groq LLM. The service is designed for automation pipelines that require a compact and reliable instruction format.
 
