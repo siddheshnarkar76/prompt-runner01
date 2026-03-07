@@ -380,7 +380,10 @@ class LLMAdapter:
         if raw is None:
             raise ValueError("Groq did not return a parseable JSON object.")
 
-        return _sanitize_instruction(raw)
+        result = _sanitize_instruction(raw)
+        # Echo the original user prompt (pre-truncation) as the first field
+        result = {"prompt": prompt, **result}
+        return result
 
     def generate_with_fallback(self, prompt: str, fallback_fn) -> Dict[str, Any]:
         """

@@ -50,13 +50,14 @@ INSTRUCTION_SCHEMA: Dict[str, Any] = {
     "title": "Prompt Runner Instruction",
     "type": "object",
     "properties": {
+        "prompt":        {"type": "string"},
         "module":        {"type": "string"},
         "intent":        {"type": "string"},
         "topic":         {"type": "string"},
         "tasks":         {"type": "array", "items": {"type": "string"}, "minItems": 1},
         "output_format": {"type": "string"},
     },
-    "required": ["module", "intent", "topic", "tasks", "output_format"],
+    "required": ["prompt", "module", "intent", "topic", "tasks", "output_format"],
     "additionalProperties": False,
 }
 
@@ -84,6 +85,7 @@ class PromptRequest(BaseModel):
 
 
 class InstructionResponse(BaseModel):
+    prompt:        str
     module:        str
     intent:        str
     topic:         str
@@ -118,8 +120,9 @@ def generate_instruction(request: PromptRequest):
     """
     Convert a user prompt into a structured JSON instruction via Groq API.
 
-    Output always contains exactly these 5 keys:
+    Output always contains exactly these 6 keys:
     {
+        "prompt": "...",
         "module": "...",
         "intent": "...",
         "topic": "...",
@@ -162,3 +165,8 @@ def list_models():
         "models":         llm.client.list_models() if llm.available else [],
         "default_model":  DEFAULT_MODEL,
     }
+    
+    
+    
+    
+    
