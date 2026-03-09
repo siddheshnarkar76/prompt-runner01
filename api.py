@@ -50,14 +50,15 @@ INSTRUCTION_SCHEMA: Dict[str, Any] = {
     "title": "Prompt Runner Instruction",
     "type": "object",
     "properties": {
-        "prompt":        {"type": "string"},
-        "module":        {"type": "string"},
-        "intent":        {"type": "string"},
-        "topic":         {"type": "string"},
-        "tasks":         {"type": "array", "items": {"type": "string"}, "minItems": 1},
-        "output_format": {"type": "string"},
+        "prompt":          {"type": "string"},
+        "module":          {"type": "string"},
+        "intent":          {"type": "string"},
+        "topic":           {"type": "string"},
+        "tasks":           {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "output_format":   {"type": "string"},
+        "product_context": {"type": "string", "enum": ["creator_core"]},
     },
-    "required": ["prompt", "module", "intent", "topic", "tasks", "output_format"],
+    "required": ["prompt", "module", "intent", "topic", "tasks", "output_format", "product_context"],
     "additionalProperties": False,
 }
 
@@ -85,12 +86,13 @@ class PromptRequest(BaseModel):
 
 
 class InstructionResponse(BaseModel):
-    prompt:        str
-    module:        str
-    intent:        str
-    topic:         str
-    tasks:         List[str]
-    output_format: str
+    prompt:          str
+    module:          str
+    intent:          str
+    topic:           str
+    tasks:           List[str]
+    output_format:   str
+    product_context: str = "creator_core"
 
 
 class HealthResponse(BaseModel):
