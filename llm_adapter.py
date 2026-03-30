@@ -38,7 +38,7 @@ def _load_local_env(path: str = ".env.local") -> None:
         env_path = os.path.join(base, path)
         if not os.path.exists(env_path):
             return
-        with open(env_path, "r", encoding="utf-8") as fh:
+        with open(env_path, "r", encoding="utf-8") as fh:  
             for raw in fh:
                 line = raw.strip()
                 if not line or line.startswith("#"):
@@ -125,7 +125,7 @@ FIELD DEFINITIONS:
   topic          — A short description of the main subject of the request.
   tasks          — A list of short execution steps required to fulfill the request. Each task must be concise and machine-readable.
   output_format  — The expected structure of the final output.
-  product_context — Indicates which product pipeline the request belongs to. Always set to: "creator_core"
+  product_context — Indicates which product pipeline the request belongs to. Always set to: "creator_core" 
 
 ARRAY RULE (IMPORTANT):
 The tasks field must be a valid JSON array. Do NOT include numeric indexes.
@@ -177,21 +177,34 @@ class GroqClient:
     """
 
     def __init__(self, api_key: Optional[str] = None, model: str = DEFAULT_MODEL):
-        self.api_key = api_key or os.environ.get("GROQ_API_KEY", "")
-        self.model   = model
+        # Keep explicit constructor key as an override; otherwise resolve from
+        # environment dynamically on every request/check.
+        self._api_key_override = api_key
+        self.model = model
+
+    def _resolve_api_key(self) -> str:
+        """Resolve the API key at call-time to avoid stale env state."""
+        _load_local_env()
+        return (self._api_key_override or os.environ.get("GROQ_API_KEY", "")).strip()
 
     def is_available(self) -> bool:
-        """Return True if a Groq API key is configured."""
-        return bool(self.api_key and self.api_key.strip())
+        """Return True if a Groq API key is configured.
+
+        This does a lightweight connectivity check when called with a network
+        probe (used by the adapter on first availability check). Use
+        `list_models()` for a stronger verification when needed.
+        """
+        return bool(self._resolve_api_key())
 
     def list_models(self) -> List[str]:
         """Return the list of available Groq models via the models endpoint."""
         if not self.is_available():
             return []
         try:
+            api_key = self._resolve_api_key()
             resp = requests.get(
                 "https://api.groq.com/openai/v1/models",
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                headers={"Authorization": f"Bearer {api_key}"},
                 timeout=5,
             )
             if resp.status_code == 200:
@@ -199,6 +212,24 @@ class GroqClient:
         except Exception:
             pass
         return []
+
+    def probe_connectivity(self, timeout: float = 2.0) -> bool:
+        """Quickly probe the Groq models endpoint to verify API access.
+
+        Returns True when the request succeeds within `timeout`, False otherwise.
+        """
+        if not self.is_available():
+            return False
+        try:
+            api_key = self._resolve_api_key()
+            resp = requests.get(
+                "https://api.groq.com/openai/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=timeout,
+            )
+            return resp.status_code == 200
+        except Exception:
+            return False
 
     def _best_model(self) -> str:
         """Return the best instruction-following model available on this account."""
@@ -245,10 +276,11 @@ class GroqClient:
             "max_tokens":  256,
             "response_format": {"type": "json_object"},  # forces valid JSON output
         }
+        api_key = self._resolve_api_key()
         resp = requests.post(
             GROQ_API_URL,
             headers={
-                "Authorization": f"Bearer {self.api_key}",
+                "Authorization": f"Bearer {api_key}",
                 "Content-Type":  "application/json",
             },
             json=payload,
@@ -372,6 +404,8 @@ class LLMAdapter:
     """
 
     def __init__(self, api_key: Optional[str] = None, model: str = DEFAULT_MODEL):
+        # Always reload .env.local at adapter creation
+        _load_local_env()
         self.client = GroqClient(api_key=api_key, model=model)
         self._available: Optional[bool] = None
 
@@ -379,7 +413,15 @@ class LLMAdapter:
     def available(self) -> bool:
         """Lazy-cached availability check (key present + API reachable)."""
         if self._available is None:
-            self._available = self.client.is_available()
+            # Check that an API key is configured and the service is reachable
+            # with a short network probe to avoid falsely reporting availability
+            # when the process started before env vars were set or the network
+            # is unreachable.
+            key_present = self.client.is_available()
+            if not key_present:
+                self._available = False
+            else:
+                self._available = self.client.probe_connectivity(timeout=2.0)
         return self._available
 
     def reset_availability_cache(self) -> None:
